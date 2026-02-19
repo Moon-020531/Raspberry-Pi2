@@ -123,6 +123,19 @@ def delete_tweet(tweet_id):
        """), {'tweet_id': tweet_id})
        return result.rowcount
 
+def update_user(user_id, data):
+    with current_app.database.begin() as conn:
+        result = conn.execute(text("""
+            UPDATE users 
+            SET name = :name, profile = :profile 
+            WHERE id = :user_id
+
+        """), {
+            'name': data.get('name'), 
+            'profile': data.get('profile'), 
+            'user_id': user_id})
+        return result.rowcount   
+
    
     
 
@@ -196,6 +209,17 @@ def create_app(test_config=None):
         deleted_count = delete_tweet(tweet_id)
         if deleted_count == 0:
             return '트윗이 존재하지 않습니다.', 404
+        return '', 200
+    
+    @app.route('/user/<int:user_id>', methods=['PUT'])
+    def update_user_route(user_id):
+        payload = request.json
+        name = payload.get('name')
+        profile = payload.get('profile')
+
+        updated_count = update_user(user_id, payload)
+        if updated_count == 0:
+            return '사용자가 존재하지 않습니다.', 404
         return '', 200
 
 
