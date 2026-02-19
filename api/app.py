@@ -3,158 +3,159 @@ from flask.json.provider import DefaultJSONProvider
 from sqlalchemy import create_engine, text
 
 class CustomJSONProvider(DefaultJSONProvider):
-   def default(self, obj):
-       if isinstance(obj, set):
-           return list(obj)
-       return super().default(obj)
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return super().default(obj)
 
 def insert_user(user):
-   with current_app.database.connect() as conn:
-       result = conn.execute(text("""
-           INSERT INTO users (
-               name,
-               email,
-               profile,
-               hashed_password
-           ) VALUES (
-               :name,
-               :email,
-               :profile,
-               :password
-           )
-       """), user)
-       conn.commit()
-       return result.lastrowid
+    with current_app.database.connect() as conn:
+        result = conn.execute(text("""
+            INSERT INTO users (
+                name,
+                email,
+                profile,
+                hashed_password
+            ) VALUES (
+                :name,
+                :email,
+                :profile,
+                :password
+            )
+        """), user)
+        conn.commit()
+        return result.lastrowid
 
 def get_user(user_id):
-   with current_app.database.connect() as conn:
-       user = conn.execute(text("""
-           SELECT
-               id,
-               name,
-               email,
-               profile
-           FROM users
-           WHERE id = :user_id
-       """), {'user_id': user_id}).fetchone()
-
-   return {
-       'id'      : user[0],
-       'name'    : user[1],
-       'email'   : user[2],
-       'profile' : user[3]
-   } if user else None
+    with current_app.database.connect() as conn:
+        user = conn.execute(text("""
+            SELECT id, name, email, profile
+            FROM users
+            WHERE id = :user_id
+        """), {'user_id': user_id}).fetchone()
+    
+ 
+    return {
+        'id'      : user[0],
+        'name'    : user[1],
+        'email'   : user[2],
+        'profile' : user[3]
+    } if user else None
 
 def insert_tweet(user_tweet):
-   with current_app.database.connect() as conn:
-       result = conn.execute(text("""
-           INSERT INTO tweets (
-               user_id,
-               tweet
-           ) VALUES (
-               :id,
-               :tweet
-           )
-       """), user_tweet)
-       conn.commit()
-       return result.rowcount
+    with current_app.database.connect() as conn:
+        result = conn.execute(text("""
+            INSERT INTO tweets (
+                user_id,
+                tweet
+            ) VALUES (
+                :id,
+                :tweet
+            )
+        """), user_tweet)
+        conn.commit()
+        return result.rowcount
 
 def insert_follow(user_follow):
-   with current_app.database.connect() as conn:
-       result = conn.execute(text("""
-           INSERT INTO users_follow_list (
-               user_id,
-               follow_user_id
-           ) VALUES (
-               :id,
-               :follow
-           )
-       """), user_follow)
-       conn.commit()
-       return result.rowcount
+    with current_app.database.connect() as conn:
+        result = conn.execute(text("""
+            INSERT INTO users_follow_list (
+                user_id,
+                follow_user_id
+            ) VALUES (
+                :id,
+                :follow
+            )
+        """), user_follow)
+        conn.commit()
+        return result.rowcount
 
 def insert_unfollow(user_unfollow):
-   with current_app.database.connect() as conn:
-       result = conn.execute(text("""
-           DELETE FROM users_follow_list
-           WHERE user_id = :id
-           AND follow_user_id = :unfollow
-       """), user_unfollow)
-       conn.commit()
-       return result.rowcount
+    with current_app.database.connect() as conn:
+        result = conn.execute(text("""
+            DELETE FROM users_follow_list
+            WHERE user_id = :id
+            AND follow_user_id = :unfollow
+        """), user_unfollow)
+        conn.commit()
+        return result.rowcount
 
 def get_timeline(user_id):
-   with current_app.database.connect() as conn:
-       timeline = conn.execute(text("""
-           SELECT
-               t.user_id,
-               t.tweet
-           FROM tweets t
-           LEFT JOIN users_follow_list ufl ON ufl.user_id = :user_id
-           WHERE t.user_id = :user_id
-           OR t.user_id = ufl.follow_user_id
-       """), {'user_id': user_id}).fetchall()
+    with current_app.database.connect() as conn:
+        timeline = conn.execute(text("""
+            SELECT
+                t.user_id,
+                t.tweet
+            FROM tweets t
+            LEFT JOIN users_follow_list ufl ON ufl.user_id = :user_id
+            WHERE t.user_id = :user_id
+            OR t.user_id = ufl.follow_user_id
+        """), {'user_id': user_id}).fetchall()
 
-   return [{
-       'user_id' : tweet[0],
-       'tweet'   : tweet[1]
-   } for tweet in timeline]
+    return [{
+        'user_id' : tweet[0],
+        'tweet'   : tweet[1]
+    } for tweet in timeline]
 
 def create_app(test_config=None):
-   app = Flask(__name__)
-   app.json_provider_class = CustomJSONProvider
-   app.json = CustomJSONProvider(app)
+    app = Flask(__name__)
+    app.json_provider_class = CustomJSONProvider
+    app.json = CustomJSONProvider(app)
 
-   if test_config is None:
-       app.config.from_pyfile("config.py")
-   else:
-       app.config.update(test_config)
+    if test_config is None:
+        app.config.from_pyfile("config.py")
+    else:
+        app.config.update(test_config)
 
-   database = create_engine(app.config['DB_URL'], max_overflow=0)
-   app.database = database
+    database = create_engine(app.config['DB_URL'], max_overflow=0)
+    app.database = database
 
-   @app.route("/ping", methods=['GET'])
-   def ping():
-       return "pong"
+    @app.route("/ping", methods=['GET'])
+    def ping():
+        return "pong"
 
-   @app.route("/sign-up", methods=['POST'])
-   def sign_up():
-       new_user = request.json
-       new_user_id = insert_user(new_user)
-       new_user = get_user(new_user_id)
-       return jsonify(new_user)
+    @app.route("/sign-up", methods=['POST'])
+    def sign_up():
+        new_user = request.json
+        new_user_id = insert_user(new_user)
+        new_user = get_user(new_user_id)
+        return jsonify(new_user)
 
-   @app.route('/tweet', methods=['POST'])
-   def tweet():
-       user_tweet = request.json
-       tweet = user_tweet['tweet']
+    @app.route('/tweet', methods=['POST'])
+    def tweet():
+        user_tweet = request.json
+        tweet = user_tweet['tweet']
 
-       if len(tweet) > 300:
-           return '300자를 초과했습니다.', 400
+        if len(tweet) > 300:
+            return '300자를 초과했습니다.', 400
 
-       insert_tweet(user_tweet)
+        insert_tweet(user_tweet)
+        return '', 200
 
-       return '', 200
+    @app.route('/follow', methods=['POST'])
+    def follow():
+        payload = request.json
+        insert_follow(payload)
+        return '', 200
 
-   @app.route('/follow', methods=['POST'])
-   def follow():
-       payload = request.json
-       insert_follow(payload)
+    @app.route('/unfollow', methods=['POST'])
+    def unfollow():
+        payload = request.json
+        insert_unfollow(payload)
+        return '', 200
 
-       return '', 200
+    @app.route('/timeline/<int:user_id>', methods=['GET'])
+    def timeline(user_id):
+        return jsonify({
+            'user_id'  : user_id,
+            'timeline' : get_timeline(user_id)
+        })
 
-   @app.route('/unfollow', methods=['POST'])
-   def unfollow():
-       payload = request.json
-       insert_unfollow(payload)
+    @app.route('/user/<int:user_id>', methods=['GET'])
+    def get_user_info(user_id):
+        user = get_user(user_id)
+        if user is None:
+            return '사용자가 존재하지 않습니다.', 404
+        return jsonify(user)
 
-       return '', 200
-
-   @app.route('/timeline/<int:user_id>', methods=['GET'])
-   def timeline(user_id):
-       return jsonify({
-           'user_id'  : user_id,
-           'timeline' : get_timeline(user_id)
-       })
-
-   return app
+    return app
