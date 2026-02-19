@@ -83,6 +83,23 @@ def insert_unfollow(user_unfollow):
        conn.commit()
        return result.rowcount
 
+def get_timeline(user_id):
+   with current_app.database.connect() as conn:
+       timeline = conn.execute(text("""
+           SELECT
+               t.user_id,
+               t.tweet
+           FROM tweets t
+           LEFT JOIN users_follow_list ufl ON ufl.user_id = :user_id
+           WHERE t.user_id = :user_id
+           OR t.user_id = ufl.follow_user_id
+       """), {'user_id': user_id}).fetchall()
+
+   return [{
+       'user_id' : tweet[0],
+       'tweet'   : tweet[1]
+   } for tweet in timeline]
+
 def create_app(test_config=None):
    app = Flask(__name__)
    app.json_provider_class = CustomJSONProvider
