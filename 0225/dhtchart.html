@@ -7,61 +7,82 @@
     <title>실시간 온도, 습도 측정기</title>
     
     <script src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/4.0.4/highcharts.js"></script>
     
     <script>
-        var chart;   
-        var chart2;  
-        var pollUri = "/events";
+        var chart, chart2;
+        var socket = io(); 
 
-        function pollEvent() {
-            $.getJSON(pollUri, function(data) {
-                var t = new Date();
-                t.setHours(t.getHours() + 9); 
+        socket.on('connect', function() {
+            console.log("✅ 서버와 소켓 연결 성공!");
+            socket.emit('join_web', {room: 'WEB'}); 
+        });
+
+        socket.on('dht_chart', function(msg) {
+            console.log("📩 원본 수신 데이터:", msg);
+
+            // 🌟 핵심 해결 부분: ESP32가 보낸 '문자열'을 차트가 읽을 수 있는 'JSON 객체'로 강제 변환
+            var sensorData;
+            try {
+                sensorData = typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data;
+            } catch (e) {
+                console.error("데이터 변환 실패:", e);
+                return; // 에러 나면 멈춤
+            }
+
+            var t = new Date().getTime(); 
+
+            // 변환된 데이터에서 온도와 습도를 뽑아냄
+            if(sensorData && sensorData.temperature) {
+                var tempVal = Number(sensorData.temperature);
+                var humiVal = Number(sensorData.humidity);
                 
-                if(data && data.temperature && data.humidity) {
-                    charAddPoint([t.getTime(), Number(data.temperature)]);
-                    charAddPoint2([t.getTime(), Number(data.humidity)]);
-                }
-            });
-            setTimeout(pollEvent, 5000);
-        }
+                console.log("📈 차트 업데이트 완료: 온도=" + tempVal + ", 습도=" + humiVal);
+                
+                charAddPoint([t, tempVal]);
+                charAddPoint2([t, humiVal]);
+            }
+        });
 
         function charAddPoint(tval) {
             var series = chart.series[0];
             var shift = series.data.length > 20; 
-            chart.series[0].addPoint(tval, true, shift); 
+            series.addPoint(tval, true, shift); 
         }
 
         function charAddPoint2(tval) {
             var series = chart2.series[0];
             var shift2 = series.data.length > 20; 
-            chart2.series[0].addPoint(tval, true, shift2); 
+            series.addPoint(tval, true, shift2); 
         }
 
         $(function() {
+            // 로컬 시간 사용 설정
+            Highcharts.setOptions({ global: { useUTC: false } });
+
             chart = new Highcharts.Chart({
-                chart:  {renderTo: 'temp', defaultSeriesType: 'spline'},
-                title:  {text: '실시간 온도 데이터'},
-                xAxis:  {type: 'datetime', tickPixelInterval: 120, maxZoom: 20 * 1000},
-                yAxis:  {minPadding: 0.2, maxPadding: 0.2, title: {text: '온도(C)', margin: 20}},
-                series: [{name: '온도', data: []}]
+                chart: { renderTo: 'temp', defaultSeriesType: 'spline' },
+                title: { text: '실시간 온도 데이터' },
+                xAxis: { type: 'datetime', tickPixelInterval: 120 },
+                yAxis: { title: { text: '온도(C)' } },
+                series: [{ name: '온도', data: [] }]
             }); 
 
             chart2 = new Highcharts.Chart({
-                chart:  {renderTo: 'humi', defaultSeriesType: 'spline'},
-                title:  {text: '실시간 습도 데이터'},
-                xAxis:  {type: 'datetime', tickPixelInterval: 120, maxZoom: 20 * 1000},
-                yAxis:  {minPadding: 0.2, maxPadding: 0.2, title: {text: '습도(%)', margin: 20}},
-                series: [{name: '습도', data: []}]
+                chart: { renderTo: 'humi', defaultSeriesType: 'spline' },
+                title: { text: '실시간 습도 데이터' },
+                xAxis: { type: 'datetime', tickPixelInterval: 120 },
+                yAxis: { title: { text: '습도(%)' } },
+                series: [{ name: '습도', data: [] }]
             });
-
-            pollEvent(); 
         });    
     </script>
 </head>
 <body>
     <div id="temp" style="width:100%; height:300px; margin-bottom: 20px;"></div>
     <div id="humi" style="width:100%; height:300px;"></div>
+    <hr>
+    <button onclick="location.href='/'">제어 페이지로 이동</button>
 </body>
 </html>
